@@ -5,10 +5,11 @@ import std.getopt;
 import std.stdio;
 import std.string;
 
-// TODO: consolidate add esp
+// TODO: consolidate "add esp, x"
+// TODO: stack alignment (default should be 4; e.g don't push ax, push eax)
 // TODO: float stuff
 
-// TODO: actually this
+// TODO: actually do this
 bool isD = false;
 
 void main(string[] argv)
@@ -95,13 +96,10 @@ void parseDecl(in string str)
 	doIndent(); stdout.writeln("__asm");
 	doIndent(); stdout.writeln("{"); ++indent;
 
-	string[2][] registers;
-	size_t stack, stack_args;
+	string[2][] parsedArgs;
 
 	foreach_reverse (arg; arguments)
 	{
-		doIndent();
-
 		auto _arg = arg.idup;
 		_arg.munch("^ ");
 		_arg.munch("* ");
@@ -112,15 +110,27 @@ void parseDecl(in string str)
 		auto register = _arg.munch("^>");
 		_arg.munch(">");
 
-		if (register.empty)
+		parsedArgs ~= (register.empty) ? [ null, name.idup ] : [ register.idup, name.idup ];
+	}
+
+	// used later if this is userpurge
+	size_t stackArgCount = parsedArgs.count!(x => x[0].empty);
+
+	size_t _count = stackArgCount;
+	size_t stack;
+
+	foreach (arg; parsedArgs)
+	{
+		doIndent();
+
+		if (arg[0].empty)
 		{
-			registers ~= [ null, name.idup ];
-			stdout.writefln("push [esp + %02Xh] // %s", (4 * ++stack_args) + stack, name);
+			enforce(stackArgCount > 0, "Parse error");
+			stdout.writefln("push [esp + %02Xh] // %s", (4 * _count--) + stack, arg[1]);
 		}
 		else
 		{
-			registers ~= [ register.idup, name.idup ];
-			stdout.writefln("push %s // %s", register, name);
+			stdout.writefln("push %s // %s", arg[0], arg[1]);
 		}
 
 		stack += 4;
@@ -136,16 +146,17 @@ void parseDecl(in string str)
 
 	stdout.writeln();
 
-	foreach_reverse (register; registers)
+	foreach_reverse (register; parsedArgs)
 	{
 		doIndent();
 
-		if (register[0] is null)
+		if (register[0].empty)
 		{
 			stdout.writeln("add esp, 4 // ", register[1]);
 			continue;
 		}
 
+		// TODO: variable size registers (e.g eax == ax == ah == al)
 		if (register[0] == returnRegister)
 		{
 			stdout.writefln("add esp, 4 // %s<%s> is also used for return value", register[1], register[0]);
@@ -156,9 +167,11 @@ void parseDecl(in string str)
 	}
 
 	doIndent();
+
 	if (purge)
 	{
-		stdout.writefln("retn %02Xh", stack_args * 4);
+		// corrects the stack for the calling function
+		stdout.writefln("retn %02Xh", 4 * stackArgCount);
 	}
 	else
 	{
