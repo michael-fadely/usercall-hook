@@ -76,17 +76,17 @@ void parseDecl(in string str)
 	decl.munch("(");
 
 	auto arguments = decl.munch("^);").split(',')
-		.map!(x => x.strip())
+		.map!strip
 		.array;
 
 	size_t indent;
 
 	void doIndent(size_t level = indent)
 	{
-		if (!level)
-			return;
-
-		stdout.write("\t".replicate(level));
+		if (level)
+		{
+			stdout.write("\t".replicate(level));
+		}
 	}
 
 	stdout.writefln("static void __declspec(naked) %s()", functionName);
