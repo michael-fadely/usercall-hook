@@ -4,23 +4,21 @@ import std.exception;
 import std.getopt;
 import std.stdio;
 import std.string;
+import std.uni : isWhite;
 
 // TODO: consolidate "add esp, x"
 // TODO: stack alignment (default should be 4; e.g don't push ax, push eax)
 // TODO: float stuff
 
-// TODO: actually do this
-bool isD = false;
-
 void main(string[] argv)
 {
 	try
 	{
-		auto help = getopt(argv, "d|use-d", "Generate D inline assembly instead of MSVC++.", &isD);
+		auto help = getopt(argv);
 
 		if (help.helpWanted || argv.length < 2)
 		{
-			defaultGetoptPrinter("usercall-hook [options] \"void __usercall function(a1@<ebx>)\" ...", help.options);
+			defaultGetoptPrinter(`usercall-hook "void __usercall function(a1@<ebx>)" ...`, help.options);
 			return;
 		}
 	}
@@ -43,39 +41,40 @@ void main(string[] argv)
 	}
 }
 
-void parseDecl(in string str)
+void parseDecl(string decl)
 {
-	auto decl = str.strip().idup;
-
-	auto returnType = decl.munch("^ ");
-	decl.munch(" ");
+	auto returnType = decl.takeUntil!isWhite;
+	decl.takeWhile!isWhite;
 
 	while (returnType == "signed" || returnType == "unsigned")
 	{
-		returnType = decl.munch("^ ");
-		decl.munch("* ");
+		returnType = decl.takeUntil!isWhite;
+		decl.takeWhile!((x) => isWhite(x) || x == '*');
 	}
 
-	auto convention = decl.munch("^ ");
-	decl.munch(" ");
+	auto convention = decl.takeUntil!isWhite;
+	decl.takeWhile!isWhite;
 
 	bool purge = convention.endsWith("userpurge");
 	enforce(convention.endsWith("usercall") || purge, "Provided declaration is neither usercall nor userpurge.");
 
-	auto functionName = decl.munch("^@<(");
-	decl.munch(" ");
+	auto functionName = decl.takeUntilAny("@<(");
+	decl.takeWhile!isWhite;
 
 	string returnRegister;
+
 	if (returnType != "void")
 	{
-		decl.munch("@<");
-		returnRegister = decl.munch("^>");
-		decl.munch(">");
+		decl.takeWhileAny("@<");
+		returnRegister = decl.takeUntil('>');
+		decl.takeWhile('>');
 	}
 
-	decl.munch("(");
+	decl.takeWhile('(');
 
-	auto arguments = decl.munch("^);").split(',')
+	auto arguments = decl
+		.takeUntilAny(");")
+		.split(',')
 		.map!strip
 		.array;
 
@@ -101,14 +100,14 @@ void parseDecl(in string str)
 	foreach_reverse (arg; arguments)
 	{
 		auto _arg = arg.idup;
-		_arg.munch("^ ");
-		_arg.munch("* ");
+		_arg.takeUntil!isWhite;
+		_arg.takeWhile!((x) => isWhite(x) || x == '*');
 
-		auto name = _arg.munch("^@<");
-		_arg.munch("@<");
+		auto name = _arg.takeUntilAny("@<");
+		_arg.takeWhileAny("@<");
 
-		auto register = _arg.munch("^>");
-		_arg.munch(">");
+		auto register = _arg.takeUntil('>');
+		_arg.takeWhile('>');
 
 		parsedArgs ~= (register.empty) ? [ null, name.idup ] : [ register.idup, name.idup ];
 	}
@@ -185,4 +184,166 @@ void parseDecl(in string str)
 	}
 
 	stdout.writeln();
+}
+
+// convenience functions
+
+/**
+	Returns a slice of `arr` from 0 until the index where `pred` is satisfied.
+	`arr` is narrowed to the range after that point.
+
+	Params:
+		pred = Predicate.
+		arr  = Array to search.
+
+	Returns:
+		Slice of `arr`.
+ */
+R[] takeUntil(alias pred, R)(ref R[] arr)
+{
+	foreach (size_t i, e; arr)
+	{
+		if (pred(e))
+		{
+			auto result = arr[0 .. i];
+			arr = arr[(i > $ ? $ : i) .. $];
+			return result;
+		}
+	}
+
+	return arr;
+}
+
+/**
+	Returns a slice of `arr` from 0 until the index where `element` is found.
+	`arr` is narrowed to the range after that point.
+
+	Params:
+		arr     = Array to search.
+		element = The element to search for.
+
+	Returns:
+		Slice of `arr`.
+ */
+R[] takeUntil(R)(ref R[] arr, in R element)
+{
+	foreach (size_t i, e; arr)
+	{
+		if (e == element)
+		{
+			auto result = arr[0 .. i];
+			arr = arr[(i > $ ? $ : i) .. $];
+			return result;
+		}
+	}
+
+	return arr;
+}
+
+/**
+	Returns a slice of `arr` from 0 until the index where any element of `a` is found.
+	`arr` is narrowed to the range after that point.
+
+	Params:
+		arr = Array to search.
+		a   = The elements to search for.
+
+	Returns:
+		Slice of `arr`.
+ */
+R[] takeUntilAny(R)(ref R[] arr, R[] a)
+{
+	foreach (size_t i, e; arr)
+	{
+		if (a.any!((x) => x == e))
+		{
+			auto result = arr[0 .. i];
+			arr = arr[(i > $ ? $ : i) .. $];
+			return result;
+		}
+	}
+
+	return arr;
+}
+
+/**
+	Returns a slice of `arr` from 0 until the last index where `pred` is satisfied.
+	`arr` is narrowed to the range after that point.
+
+	Params:
+		pred = Predicate.
+		arr  = Array to search.
+
+	Returns:
+		Slice of `arr`.
+ */
+R[] takeWhile(alias pred, R)(ref R[] arr)
+{
+	foreach (size_t i, e; arr)
+	{
+		if (!pred(e))
+		{
+			auto result = arr[0 .. i];
+			arr = arr[(i > $ ? $ : i) .. $];
+			return result;
+		}
+	}
+
+	return arr;
+}
+
+/**
+	Returns a slice of `arr` from 0 until the index where `element` is no longer found.
+	`arr` is narrowed to the range after that point.
+
+	Params:
+		arr     = Array to search.
+		element = The element to search for.
+
+	Returns:
+		Slice of `arr`.
+ */
+R[] takeWhile(R)(ref R[] arr, in R element)
+{
+	foreach (size_t i, e; arr)
+	{
+		if (e == element)
+		{
+			continue;
+		}
+
+		auto result = arr[0 .. i];
+		arr = arr[(i > $ ? $ : i) .. $];
+		return result;
+	}
+
+	return arr;
+}
+
+/**
+	Returns a slice of `arr` from 0 until the index where no elements of `a` are found.
+	`arr` is narrowed to the range after that point.
+
+	Params:
+		arr = Array to search.
+		a   = The elements to search for.
+
+	Returns:
+		Slice of `arr`.
+ */
+R[] takeWhileAny(R)(ref R[] arr, R[] a)
+{
+	foreach (size_t i, e; arr)
+	{
+		if (a.any!((x) => x == e))
+		{
+			continue;
+		}
+
+		auto result = arr[0 .. i];
+		arr = arr[(i > $ ? $ : i) .. $];
+		return result;
+	}
+
+	return arr;
 }
