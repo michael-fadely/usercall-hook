@@ -107,6 +107,12 @@ void parseDecl(string decl)
 		_arg.takeWhileAny("@<");
 
 		auto register = _arg.takeUntil('>');
+
+		if (register is _arg)
+		{
+			register = null;
+		}
+
 		_arg.takeWhile('>');
 
 		parsedArgs ~= (register.empty) ? [ null, name.idup ] : [ register.idup, name.idup ];
