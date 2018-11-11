@@ -41,6 +41,86 @@ void main(string[] argv)
 	}
 }
 
+/// Returns the largest representation of the register `r` (`ax` -> `rax`)
+string expandRegister(string r)
+{
+	if (r.empty)
+	{
+		return null;
+	}
+
+	switch (r.toLower())
+	{
+		default:
+			return r;
+
+		case "eax":
+		case "ax":
+		case "al":
+		case "ah":
+			return "rax";
+
+		case "ebx":
+		case "bx":
+		case "bl":
+		case "bh":
+			return "rbx";
+
+		case "ecx":
+		case "cx":
+		case "cl":
+		case "ch":
+			return "rcx";
+
+		case "edx":
+		case "dx":
+		case "dl":
+		case "dh":
+			return "rdx";
+
+		case "esi":
+		case "si":
+		case "sil":
+			return "rsi";
+
+		case "edi":
+		case "di":
+		case "dil":
+			return "rdi";
+
+		case "esp":
+		case "sp":
+		case "spl":
+			return "rsp";
+
+		case "r8d":
+		case "r8w":
+		case "r8b":
+		case "r9d":
+		case "r9w":
+		case "r9b":
+		case "r10d":
+		case "r10w":
+		case "r10b":
+		case "r11d":
+		case "r11w":
+		case "r11b":
+		case "r12d":
+		case "r12w":
+		case "r12b":
+		case "r13d":
+		case "r13w":
+		case "r13b":
+		case "r14d":
+		case "r14w":
+		case "r14b":
+		case "r15d":
+		case "r15w":
+		case "r15b":
+			return r[0 .. $ - 1];
+	}
+}
+
 void parseDecl(string decl)
 {
 	auto returnType = decl.takeUntil!isWhite;
@@ -92,8 +172,11 @@ void parseDecl(string decl)
 	stdout.writeln("{");
 	++indent;
 
-	doIndent(); stdout.writeln("__asm");
-	doIndent(); stdout.writeln("{"); ++indent;
+	doIndent();
+	stdout.writeln("__asm");
+
+	doIndent();
+	stdout.writeln("{"); ++indent;
 
 	string[2][] parsedArgs;
 
@@ -151,6 +234,8 @@ void parseDecl(string decl)
 
 	stdout.writeln();
 
+	const expandedReturnRegister = expandRegister(returnRegister);
+
 	foreach_reverse (register; parsedArgs)
 	{
 		doIndent();
@@ -161,8 +246,7 @@ void parseDecl(string decl)
 			continue;
 		}
 
-		// TODO: variable size registers (e.g eax == ax == ah == al)
-		if (register[0] == returnRegister)
+		if (expandRegister(register[0]) == expandedReturnRegister)
 		{
 			stdout.writefln("add esp, 4 // %s<%s> is also used for return value", register[1], register[0]);
 			continue;
