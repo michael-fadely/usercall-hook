@@ -3,7 +3,7 @@
 		"Michael Fadely"
 	],
 	"copyright": "Copyright © 2023, Michael Fadely",
-	"description": "A minimal D application.",
+	"description": "Generate inline assembly functions to wrap your replacement functions.",
 	"license": "MIT",
 	"name": "usercall-hook"
 }
