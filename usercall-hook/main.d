@@ -10,23 +10,27 @@ import std.uni : isWhite;
 // TODO: stack alignment (default should be 4; e.g don't push ax, push eax)
 // TODO: float stuff
 
-void main(string[] argv)
+int main(string[] argv)
 {
 	try
 	{
-		auto help = getopt(argv);
+		auto getoptResult = getopt(argv);
 
-		if (help.helpWanted || argv.length < 2)
+		if (getoptResult.helpWanted || argv.length < 2)
 		{
-			defaultGetoptPrinter(`usercall-hook "void __usercall function(a1@<ebx>)" ...`, help.options);
-			return;
+			defaultGetoptPrinter(`usercall-hook "void __usercall function(a1@<ebx>)" ...`,
+			                     getoptResult.options);
+
+			return 0;
 		}
 	}
 	catch (Exception ex)
 	{
 		stderr.writeln(ex.msg);
-		return;
+		return -1;
 	}
+
+	int result = 0;
 
 	foreach (string s; argv[1 .. $])
 	{
@@ -37,8 +41,11 @@ void main(string[] argv)
 		catch (Exception ex)
 		{
 			stderr.writeln(ex.msg);
+			result = -1;
 		}
 	}
+
+	return result;
 }
 
 /// Returns the largest representation of the register `r` (`ax` -> `rax`)
@@ -296,7 +303,7 @@ R[] takeUntil(alias pred, R)(ref R[] arr)
 		if (pred(e))
 		{
 			auto result = arr[0 .. i];
-			arr = arr[(i > $ ? $ : i) .. $];
+			arr = arr[min(i, $) .. $];
 			return result;
 		}
 	}
@@ -322,7 +329,7 @@ R[] takeUntil(R)(ref R[] arr, in R element)
 		if (e == element)
 		{
 			auto result = arr[0 .. i];
-			arr = arr[(i > $ ? $ : i) .. $];
+			arr = arr[min(i, $) .. $];
 			return result;
 		}
 	}
@@ -348,7 +355,7 @@ R[] takeUntilAny(R)(ref R[] arr, R[] a)
 		if (a.any!((x) => x == e))
 		{
 			auto result = arr[0 .. i];
-			arr = arr[(i > $ ? $ : i) .. $];
+			arr = arr[min(i, $) .. $];
 			return result;
 		}
 	}
@@ -374,7 +381,7 @@ R[] takeWhile(alias pred, R)(ref R[] arr)
 		if (!pred(e))
 		{
 			auto result = arr[0 .. i];
-			arr = arr[(i > $ ? $ : i) .. $];
+			arr = arr[min(i, $) .. $];
 			return result;
 		}
 	}
@@ -403,7 +410,7 @@ R[] takeWhile(R)(ref R[] arr, in R element)
 		}
 
 		auto result = arr[0 .. i];
-		arr = arr[(i > $ ? $ : i) .. $];
+		arr = arr[min(i, $) .. $];
 		return result;
 	}
 
@@ -431,7 +438,7 @@ R[] takeWhileAny(R)(ref R[] arr, R[] a)
 		}
 
 		auto result = arr[0 .. i];
-		arr = arr[(i > $ ? $ : i) .. $];
+		arr = arr[min(i, $) .. $];
 		return result;
 	}
 
