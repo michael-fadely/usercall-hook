@@ -1,0 +1,9 @@
+{
+	"authors": [
+		"Michael Fadely"
+	],
+	"copyright": "Copyright © 2023, Michael Fadely",
+	"description": "A minimal D application.",
+	"license": "MIT",
+	"name": "usercall-hook"
+}
